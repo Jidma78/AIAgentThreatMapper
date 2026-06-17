@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Exports Azure réels (peuvent contenir des infos sensibles sur l'infra)
+agent_context.json
+*.local.json
+
+# Fichiers de rôle métier réels (données de travail, pas du code projet)
+agent_role.txt
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/

@@ -1,0 +1,71 @@
+{
+  "managed_identity": {
+    "principal_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    "client_id": "11111111-2222-3333-4444-555555555555",
+    "tenant_id": "66666666-7777-8888-9999-aaaaaaaaaaaa",
+    "object_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    "resource_id": "/subscriptions/sub-0000/resourceGroups/rg-agent/providers/Microsoft.ManagedIdentity/userAssignedIdentities/agent-identity"
+  },
+  "role_assignments": [
+    {
+      "role_definition_name": "Contributor",
+      "role_definition_id": "/subscriptions/sub-0000/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c",
+      "scope": "/subscriptions/sub-0000",
+      "principal_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "assignment_id": "/subscriptions/sub-0000/providers/Microsoft.Authorization/roleAssignments/ra-001"
+    },
+    {
+      "role_definition_name": "Storage Blob Data Reader",
+      "role_definition_id": "/subscriptions/sub-0000/providers/Microsoft.Authorization/roleDefinitions/2a2b9908-6ea1-4ae2-8e65-a410df84e7d1",
+      "scope": "/subscriptions/sub-0000/resourceGroups/rg-agent/providers/Microsoft.Storage/storageAccounts/agentstore001",
+      "principal_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "assignment_id": "/subscriptions/sub-0000/providers/Microsoft.Authorization/roleAssignments/ra-002"
+    }
+  ],
+  "key_vaults": [
+    {
+      "name": "agent-keyvault",
+      "resource_id": "/subscriptions/sub-0000/resourceGroups/rg-agent/providers/Microsoft.KeyVault/vaults/agent-keyvault",
+      "resource_group": "rg-agent",
+      "location": "westeurope",
+      "network_acls_default_action": "Allow",
+      "enabled_for_disk_encryption": false,
+      "soft_delete_enabled": true,
+      "purge_protection_enabled": false
+    }
+  ],
+  "storage_accounts": [
+    {
+      "name": "agentstore001",
+      "resource_id": "/subscriptions/sub-0000/resourceGroups/rg-agent/providers/Microsoft.Storage/storageAccounts/agentstore001",
+      "resource_group": "rg-agent",
+      "location": "westeurope",
+      "allow_blob_public_access": false,
+      "https_only": true,
+      "network_acls_default_action": "Allow",
+      "kind": "StorageV2",
+      "sku_name": "Standard_LRS"
+    }
+  ],
+  "ai_search_services": [
+    {
+      "name": "agent-search",
+      "resource_id": "/subscriptions/sub-0000/resourceGroups/rg-agent/providers/Microsoft.Search/searchServices/agent-search",
+      "resource_group": "rg-agent",
+      "location": "westeurope",
+      "sku_name": "standard",
+      "public_network_access": "Enabled",
+      "replica_count": 1
+    }
+  ],
+  "diagnostic_settings": [
+    {
+      "resource_id": "/subscriptions/sub-0000/resourceGroups/rg-agent/providers/Microsoft.KeyVault/vaults/agent-keyvault",
+      "name": "kv-diag",
+      "workspace_id": "/subscriptions/sub-0000/resourceGroups/rg-agent/providers/Microsoft.OperationalInsights/workspaces/agent-logs",
+      "storage_account_id": null,
+      "log_categories": ["AuditEvent", "AzurePolicyEvaluationDetails"],
+      "enabled": true
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-threat-mapper"
+version = "0.1.0"
+description = "Compare l'intention métier déclarée d'un agent IA avec les permissions réelles de son identité Azure pour identifier des risques de sécurité."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+atm = "agent_threat_mapper.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,14 @@
+name: Document Summarization Agent
+autonomy: supervised
+
+allowed:
+- read documents from Azure Blob Storage
+- query Azure AI Search index
+- retrieve secrets from Key Vault for authentication
+- call Azure OpenAI to summarize retrieved content
+
+forbidden:
+- write or delete any storage blobs
+- modify IAM role assignments
+- create or delete Azure resources
+- send data outside the tenant

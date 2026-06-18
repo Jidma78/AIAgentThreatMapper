@@ -31,7 +31,8 @@
       "network_acls_default_action": "Allow",
       "enabled_for_disk_encryption": false,
       "soft_delete_enabled": true,
-      "purge_protection_enabled": false
+      "purge_protection_enabled": false,
+      "enable_rbac_authorization": false
     }
   ],
   "storage_accounts": [

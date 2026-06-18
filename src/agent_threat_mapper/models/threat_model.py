@@ -108,7 +108,7 @@ class Path:
     (nodes[-1]). `edges` a une longueur de len(nodes) - 1."""
 
     nodes: list[Node]
-    edges: list[Edge]
+    edges: list[Edge]  # arêtes traversées, dans l'ordre ; chaque Edge porte son label (vecteur latéral inclus)
     crossed_boundaries: list[TrustBoundary]
 
     @property
@@ -121,6 +121,20 @@ class Path:
 
     def starts_untrusted(self) -> bool:
         return self.origin.untrusted_entry
+
+    def lateral_vector_label(self) -> Optional[str]:
+        """Label de l'arête inter-ressource traversée (source ET cible = AZURE_RESOURCE),
+        ou None pour un chemin direct. La borne à 1 saut garantit au plus une telle arête,
+        ce qui permet au stage 4 de typer le vecteur (exfiltration vs RAG poisoning) sans
+        inspecter toutes les arêtes ni dépendre de la seule séquence de nœuds."""
+        kind_by_id = {n.id: n.kind for n in self.nodes}
+        for e in self.edges:
+            if (
+                kind_by_id.get(e.source_id) == NodeKind.AZURE_RESOURCE
+                and kind_by_id.get(e.target_id) == NodeKind.AZURE_RESOURCE
+            ):
+                return e.label
+        return None
 
 
 @dataclass
@@ -188,13 +202,32 @@ class ThreatModel:
             return []
 
         boundary_by_id = {b.id: b for b in self.boundaries}
+        kind_by_id = {n.id: n.kind for n in self.nodes}
         out_edges: dict[str, list[Edge]] = {}
         for e in self.edges:
             out_edges.setdefault(e.source_id, []).append(e)
 
+        def _is_inter_resource(edge: Edge) -> bool:
+            # Arête latérale : source ET cible sont des ressources Azure.
+            return (
+                kind_by_id.get(edge.source_id) == NodeKind.AZURE_RESOURCE
+                and kind_by_id.get(edge.target_id) == NodeKind.AZURE_RESOURCE
+            )
+
         results: list[Path] = []
 
-        def dfs(current_id: str, visited: set[str], path_nodes: list[Node], path_edges: list[Edge]) -> None:
+        # On borne la traversée à UN SEUL saut inter-ressource. Au-delà, le DFS s'arrête sans
+        # ajouter le chemin : cela évite l'explosion combinatoire (variantes du même vecteur via
+        # des routes inter-storage différentes mais des boundaries identiques) et ne laisse que
+        # deux catégories pertinentes par cible — chemin direct (0 saut latéral) et chemin
+        # latéral (exactement 1 saut, ressource_A → ressource_B).
+        def dfs(
+            current_id: str,
+            visited: set[str],
+            path_nodes: list[Node],
+            path_edges: list[Edge],
+            inter_resource_hops: int,
+        ) -> None:
             if current_id == node_id:
                 crossed = [
                     boundary_by_id[e.boundary_id]
@@ -209,10 +242,14 @@ class ThreatModel:
                 nxt = self.get_node(e.target_id)
                 if nxt is None:
                     continue
+                # Deuxième saut inter-ressource interdit : on ne traverse pas cette arête.
+                if _is_inter_resource(e) and inter_resource_hops >= 1:
+                    continue
+                next_hops = inter_resource_hops + (1 if _is_inter_resource(e) else 0)
                 visited.add(e.target_id)
                 path_nodes.append(nxt)
                 path_edges.append(e)
-                dfs(e.target_id, visited, path_nodes, path_edges)
+                dfs(e.target_id, visited, path_nodes, path_edges, next_hops)
                 path_nodes.pop()
                 path_edges.pop()
                 visited.discard(e.target_id)
@@ -221,6 +258,6 @@ class ThreatModel:
             if entry.id == node_id:
                 results.append(Path(nodes=[entry], edges=[], crossed_boundaries=[]))
                 continue
-            dfs(entry.id, {entry.id}, [entry], [])
+            dfs(entry.id, {entry.id}, [entry], [], 0)
 
         return results

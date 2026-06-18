@@ -167,10 +167,12 @@ def test_map_key_vault_full():
             "enablePurgeProtection": True,
         },
     }
+    raw["properties"]["enableRbacAuthorization"] = True
     result = _map_key_vault(raw)
     assert result["network_acls_default_action"] == "Deny"
     assert result["soft_delete_enabled"] is True
     assert result["purge_protection_enabled"] is True
+    assert result["enable_rbac_authorization"] is True
 
 
 def test_map_key_vault_purge_protection_none():
@@ -189,6 +191,7 @@ def test_map_key_vault_missing_properties():
     result = _map_key_vault({"name": "kv", "id": "/id"})
     assert result["network_acls_default_action"] == "Allow"
     assert result["soft_delete_enabled"] is False
+    assert result["enable_rbac_authorization"] is None  # champ absent → inconnu
 
 
 # ---------------------------------------------------------------------------

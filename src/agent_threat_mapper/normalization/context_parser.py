@@ -64,6 +64,7 @@ def _parse_keyvault(d: dict[str, Any]) -> KeyVault:
         enabled_for_disk_encryption=bool(d["enabled_for_disk_encryption"]),
         soft_delete_enabled=bool(d["soft_delete_enabled"]),
         purge_protection_enabled=bool(d["purge_protection_enabled"]),
+        enable_rbac_authorization=d.get("enable_rbac_authorization"),
     )
 
 

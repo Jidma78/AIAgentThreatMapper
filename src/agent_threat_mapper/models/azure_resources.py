@@ -32,6 +32,9 @@ class KeyVault:
     enabled_for_disk_encryption: bool
     soft_delete_enabled: bool
     purge_protection_enabled: bool
+    # None = mode d'autorisation inconnu (API ancienne / champ absent). Lève l'ambiguïté
+    # Contributor vs access-policy interprétée dans models/role_interpreter.py.
+    enable_rbac_authorization: Optional[bool] = None
 
 
 @dataclass

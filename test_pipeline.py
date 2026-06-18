@@ -33,8 +33,18 @@ for rnode in tm.resource_nodes():
         print("  Aucun chemin depuis un point d'entrée non fiable")
     for p in paths:
         chain = " → ".join(n.id for n in p.nodes)
+        vector = p.lateral_vector_label()
+        suffix = f"  [vecteur latéral : {vector}]" if vector else "  [accès direct]"
+        print(f"  {chain}{suffix}")
         boundaries = ", ".join(b.id for b in p.crossed_boundaries)
-        print(f"  {chain}")
         print(f"     boundaries franchies : {boundaries}")
     log = "oui" if tm.reaches_log_sink(rnode.id) else "NON"
     print(f"  Atteint un log sink : {log}\n")
+
+print("\n=== Vérification arêtes inter-ressources ===\n")
+from agent_threat_mapper.models.threat_model import NodeKind
+for e in tm.edges:
+    src = tm.get_node(e.source_id)
+    tgt = tm.get_node(e.target_id)
+    if src.kind == NodeKind.AZURE_RESOURCE and tgt.kind == NodeKind.AZURE_RESOURCE:
+        print(f"  {e.source_id} → {e.target_id} [{e.label}]")

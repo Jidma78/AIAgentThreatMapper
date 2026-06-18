@@ -336,3 +336,169 @@ def test_diagnostics_match_is_case_insensitive():
     )
     tm = build_threat_model(_context(storage=[_storage()], diags=[diag]), _intent())
     assert tm.reaches_log_sink("resource:storage:atmstore") is True
+
+
+# ---------------------------------------------------------------------------
+# Flux inter-storage (2 vecteurs distincts, déduits des permissions réelles)
+# ---------------------------------------------------------------------------
+
+_EXFIL_LABEL = "lecture/exfiltration ou copie inter-storage possible"
+_RAG_WRITE_LABEL = "RAG poisoning → écriture inter-storage possible"
+
+
+def _storage_named(name: str) -> StorageAccount:
+    rid = f"/subscriptions/{SUB}/resourceGroups/atm-test-rg/providers/Microsoft.Storage/storageAccounts/{name}"
+    return StorageAccount(
+        name=name, resource_id=rid, resource_group="atm-test-rg", location="francecentral",
+        allow_blob_public_access=False, https_only=True, network_acls_default_action="Allow",
+        kind="StorageV2", sku_name="Standard_LRS",
+    )
+
+
+def _role_on(resource_id: str, role_name: str) -> RoleAssignment:
+    return RoleAssignment(
+        role_definition_name=role_name, role_definition_id="/rd", scope=resource_id,
+        principal_id="pid", assignment_id="/ra",
+    )
+
+
+def _edge_triples(tm):
+    return {(e.source_id, e.target_id, e.label) for e in tm.edges}
+
+
+def _inter_resource_hops(tm, path) -> int:
+    """Nombre d'arêtes latérales (source ET cible = AZURE_RESOURCE) dans un chemin."""
+    count = 0
+    for e in path.edges:
+        src, tgt = tm.get_node(e.source_id), tm.get_node(e.target_id)
+        if src.kind == NodeKind.AZURE_RESOURCE and tgt.kind == NodeKind.AZURE_RESOURCE:
+            count += 1
+    return count
+
+
+def test_inter_storage_exfil_edge_is_directional():
+    # A lisible, B inscriptible → arête A→B (flux 1). AI Search présent pour isoler le flux 1.
+    a, b = _storage_named("store-a"), _storage_named("store-b")
+    roles = [
+        _role_on(a.resource_id, "Storage Blob Data Reader"),
+        _role_on(b.resource_id, "Storage Blob Data Contributor"),
+    ]
+    tm = build_threat_model(_context(storage=[a, b], searches=[_search()], roles=roles), _intent())
+    triples = _edge_triples(tm)
+    assert ("resource:storage:store-a", "resource:storage:store-b", _EXFIL_LABEL) in triples
+    # directionnel : pas de B→A (B lisible mais A non inscriptible)
+    assert not any(
+        s == "resource:storage:store-b" and t == "resource:storage:store-a" for s, t, _ in triples
+    )
+
+
+def test_no_inter_storage_edge_when_read_only():
+    a, b = _storage_named("store-a"), _storage_named("store-b")
+    roles = [
+        _role_on(a.resource_id, "Storage Blob Data Reader"),
+        _role_on(b.resource_id, "Storage Blob Data Reader"),
+    ]
+    tm = build_threat_model(_context(storage=[a, b], searches=[_search()], roles=roles), _intent())
+    assert not any("inter-storage" in lbl for _, _, lbl in _edge_triples(tm))
+
+
+def test_rag_poisoning_inter_storage_write_edge():
+    # config B (sans AI Search) : X est source RAG (aucun rôle data), Y inscriptible.
+    x, y = _storage_named("rag-store"), _storage_named("target-store")
+    roles = [_role_on(y.resource_id, "Storage Blob Data Contributor")]
+    tm = build_threat_model(_context(storage=[x, y], roles=roles), _intent())
+    triples = _edge_triples(tm)
+    assert ("resource:storage:rag-store", "resource:storage:target-store", _RAG_WRITE_LABEL) in triples
+    # flux 1 absent : rag-store n'a aucun droit de lecture data
+    assert not any(lbl == _EXFIL_LABEL for _, _, lbl in triples)
+
+
+def test_no_rag_poisoning_edge_in_config_a():
+    # AI Search présent → storage non source RAG → pas de flux 2
+    x, y = _storage_named("rag-store"), _storage_named("target-store")
+    roles = [_role_on(y.resource_id, "Storage Blob Data Contributor")]
+    tm = build_threat_model(_context(storage=[x, y], searches=[_search()], roles=roles), _intent())
+    assert not any(lbl == _RAG_WRITE_LABEL for _, _, lbl in _edge_triples(tm))
+
+
+def test_path_to_target_storage_traverses_lateral_vector():
+    x, y = _storage_named("rag-store"), _storage_named("target-store")
+    roles = [_role_on(y.resource_id, "Storage Blob Data Contributor")]
+    tm = build_threat_model(_context(storage=[x, y], roles=roles), _intent())
+    paths = tm.paths_from_untrusted_to("resource:storage:target-store")
+
+    # Aucun chemin ne dépasse un seul saut inter-ressource.
+    assert all(_inter_resource_hops(tm, p) <= 1 for p in paths)
+    # Catégorie 1 : chemin direct, sans saut latéral.
+    assert any(_inter_resource_hops(tm, p) == 0 for p in paths)
+    # Catégorie 2 : chemin latéral à exactement un saut, passant par rag-store.
+    lateral = [p for p in paths if _inter_resource_hops(tm, p) == 1]
+    assert lateral
+    assert all("resource:storage:rag-store" in [n.id for n in p.nodes] for p in lateral)
+
+
+def test_mutual_inter_storage_edges_do_not_create_revisiting_paths():
+    # A et B mutuellement lisibles+inscriptibles → arêtes A→B et B→A (2-cycle).
+    a, b = _storage_named("store-a"), _storage_named("store-b")
+    roles = [
+        _role_on(a.resource_id, "Storage Blob Data Contributor"),
+        _role_on(b.resource_id, "Storage Blob Data Contributor"),
+    ]
+    tm = build_threat_model(_context(storage=[a, b], searches=[_search()], roles=roles), _intent())
+    triples = _edge_triples(tm)
+    assert ("resource:storage:store-a", "resource:storage:store-b", _EXFIL_LABEL) in triples
+    assert ("resource:storage:store-b", "resource:storage:store-a", _EXFIL_LABEL) in triples
+    paths = tm.paths_from_untrusted_to("resource:storage:store-b")
+    for p in paths:
+        ids = [n.id for n in p.nodes]
+        assert len(ids) == len(set(ids))            # chemins simples (pas de nœud répété)
+        assert _inter_resource_hops(tm, p) <= 1     # au plus un saut latéral malgré le 2-cycle
+
+
+def test_three_writable_storages_no_combinatorial_explosion():
+    # Cas signalé : 3 storages mutuellement inscriptibles. Sans la borne, la cible accumulait
+    # des dizaines de variantes du même vecteur ; avec la borne, au plus 1 saut latéral par chemin.
+    a, b, c = _storage_named("store-a"), _storage_named("store-b"), _storage_named("store-c")
+    roles = [
+        _role_on(a.resource_id, "Storage Blob Data Contributor"),
+        _role_on(b.resource_id, "Storage Blob Data Contributor"),
+        _role_on(c.resource_id, "Storage Blob Data Contributor"),
+    ]
+    tm = build_threat_model(_context(storage=[a, b, c], searches=[_search()], roles=roles), _intent())
+    paths = tm.paths_from_untrusted_to("resource:storage:store-c")
+
+    # Aucun chemin ne traverse deux ressources avant la cible.
+    assert all(_inter_resource_hops(tm, p) <= 1 for p in paths)
+    # Les chemins latéraux n'ont qu'une seule arête inter-ressource (…→ res_X → store-c).
+    for p in paths:
+        if _inter_resource_hops(tm, p) == 1:
+            assert p.nodes[-1].id == "resource:storage:store-c"
+            assert p.nodes[-2].kind == NodeKind.AZURE_RESOURCE
+
+
+def test_two_lateral_paths_same_nodes_distinct_vectors():
+    # rag-store : source RAG (config B) ET lisible → génère les DEUX arêtes parallèles vers
+    # target-store (exfiltration via flux 1, RAG poisoning via flux 2).
+    x, y = _storage_named("rag-store"), _storage_named("target-store")
+    roles = [
+        _role_on(x.resource_id, "Storage Blob Data Reader"),
+        _role_on(y.resource_id, "Storage Blob Data Contributor"),
+    ]
+    tm = build_threat_model(_context(storage=[x, y], roles=roles), _intent())
+    paths = tm.paths_from_untrusted_to("resource:storage:target-store")
+
+    # Regroupe par séquence de nœuds : une même séquence doit porter les deux vecteurs distincts.
+    by_sequence: dict[tuple, set] = {}
+    for p in paths:
+        seq = tuple(n.id for n in p.nodes)
+        by_sequence.setdefault(seq, set()).add(p.lateral_vector_label())
+
+    lateral_sequences = [
+        labels for labels in by_sequence.values() if labels != {None}
+    ]
+    assert any(
+        labels == {_EXFIL_LABEL, _RAG_WRITE_LABEL} for labels in lateral_sequences
+    ), "une même séquence de nœuds doit exposer les deux vecteurs latéraux distincts"
+
+    # Un chemin direct (sans saut latéral) renvoie None.
+    assert any(p.lateral_vector_label() is None for p in paths)

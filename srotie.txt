@@ -1,0 +1,124 @@
+=== STAGE 2 : parsing des deux inputs ===
+
+Agent déclaré : customer-support-assistant
+Autonomie : supervised
+Actions autorisées : 3
+Actions interdites : 4
+
+=== STAGE 3 : construction du threat model ===
+
+Nœuds (13) :
+  user — USER — zone UNTRUSTED [ENTRÉE NON FIABLE]
+  agent — AGENT — zone AGENT_RUNTIME
+  llm — LLM — zone AGENT_RUNTIME
+  logs — LOG_SINK — zone OBSERVABILITY
+  rag — RAG — zone SEMI_TRUSTED [ENTRÉE NON FIABLE]
+  resource:storage:atmteststorage123 — AZURE_RESOURCE — zone CLOUD_PLATFORM
+  tool:storage:atmteststorage123 — TOOL — zone AGENT_RUNTIME
+  resource:storage:atmstoragewriteb — AZURE_RESOURCE — zone CLOUD_PLATFORM
+  tool:storage:atmstoragewriteb — TOOL — zone AGENT_RUNTIME
+  resource:storage:atmstoragewritea — AZURE_RESOURCE — zone CLOUD_PLATFORM
+  tool:storage:atmstoragewritea — TOOL — zone AGENT_RUNTIME
+  resource:keyvault:atm-kv-2446 — AZURE_RESOURCE — zone CLOUD_PLATFORM
+  tool:keyvault:atm-kv-2446 — TOOL — zone AGENT_RUNTIME
+
+Trust boundaries (5) :
+  B1 : User → Agent
+  B2 : Contenu RAG → Agent
+  B3 : Agent → Ressources Azure
+  B4 : Azure → Logs
+  B5 : Décision LLM → invocation d'outil
+
+=== Chemins depuis un point d'entrée non fiable vers chaque ressource ===
+
+Ressource : atmteststorage123  (rôles applicables : Storage Blob Data Contributor)
+  user → agent → llm → tool:storage:atmteststorage123 → resource:storage:atmteststorage123  [accès direct]
+     boundaries franchies : B1, B5, B3
+  user → agent → llm → tool:storage:atmstoragewriteb → resource:storage:atmstoragewriteb → resource:storage:atmteststorage123  [vecteur latéral : lecture/exfiltration ou copie inter-storage possible]
+     boundaries franchies : B1, B5, B3
+  user → agent → llm → tool:storage:atmstoragewriteb → resource:storage:atmstoragewriteb → resource:storage:atmteststorage123  [vecteur latéral : RAG poisoning → écriture inter-storage possible]
+     boundaries franchies : B1, B5, B3
+  user → agent → llm → tool:storage:atmstoragewritea → resource:storage:atmstoragewritea → resource:storage:atmteststorage123  [vecteur latéral : lecture/exfiltration ou copie inter-storage possible]
+     boundaries franchies : B1, B5, B3
+  user → agent → llm → tool:storage:atmstoragewritea → resource:storage:atmstoragewritea → resource:storage:atmteststorage123  [vecteur latéral : RAG poisoning → écriture inter-storage possible]
+     boundaries franchies : B1, B5, B3
+  rag → agent → llm → tool:storage:atmteststorage123 → resource:storage:atmteststorage123  [accès direct]
+     boundaries franchies : B2, B5, B3
+  rag → agent → llm → tool:storage:atmstoragewriteb → resource:storage:atmstoragewriteb → resource:storage:atmteststorage123  [vecteur latéral : lecture/exfiltration ou copie inter-storage possible]
+     boundaries franchies : B2, B5, B3
+  rag → agent → llm → tool:storage:atmstoragewriteb → resource:storage:atmstoragewriteb → resource:storage:atmteststorage123  [vecteur latéral : RAG poisoning → écriture inter-storage possible]
+     boundaries franchies : B2, B5, B3
+  rag → agent → llm → tool:storage:atmstoragewritea → resource:storage:atmstoragewritea → resource:storage:atmteststorage123  [vecteur latéral : lecture/exfiltration ou copie inter-storage possible]
+     boundaries franchies : B2, B5, B3
+  rag → agent → llm → tool:storage:atmstoragewritea → resource:storage:atmstoragewritea → resource:storage:atmteststorage123  [vecteur latéral : RAG poisoning → écriture inter-storage possible]
+     boundaries franchies : B2, B5, B3
+  Atteint un log sink : NON
+
+Ressource : atmstoragewriteb  (rôles applicables : Storage Blob Data Contributor)
+  user → agent → llm → tool:storage:atmteststorage123 → resource:storage:atmteststorage123 → resource:storage:atmstoragewriteb  [vecteur latéral : lecture/exfiltration ou copie inter-storage possible]
+     boundaries franchies : B1, B5, B3
+  user → agent → llm → tool:storage:atmteststorage123 → resource:storage:atmteststorage123 → resource:storage:atmstoragewriteb  [vecteur latéral : RAG poisoning → écriture inter-storage possible]
+     boundaries franchies : B1, B5, B3
+  user → agent → llm → tool:storage:atmstoragewriteb → resource:storage:atmstoragewriteb  [accès direct]
+     boundaries franchies : B1, B5, B3
+  user → agent → llm → tool:storage:atmstoragewritea → resource:storage:atmstoragewritea → resource:storage:atmstoragewriteb  [vecteur latéral : lecture/exfiltration ou copie inter-storage possible]
+     boundaries franchies : B1, B5, B3
+  user → agent → llm → tool:storage:atmstoragewritea → resource:storage:atmstoragewritea → resource:storage:atmstoragewriteb  [vecteur latéral : RAG poisoning → écriture inter-storage possible]
+     boundaries franchies : B1, B5, B3
+  rag → agent → llm → tool:storage:atmteststorage123 → resource:storage:atmteststorage123 → resource:storage:atmstoragewriteb  [vecteur latéral : lecture/exfiltration ou copie inter-storage possible]
+     boundaries franchies : B2, B5, B3
+  rag → agent → llm → tool:storage:atmteststorage123 → resource:storage:atmteststorage123 → resource:storage:atmstoragewriteb  [vecteur latéral : RAG poisoning → écriture inter-storage possible]
+     boundaries franchies : B2, B5, B3
+  rag → agent → llm → tool:storage:atmstoragewriteb → resource:storage:atmstoragewriteb  [accès direct]
+     boundaries franchies : B2, B5, B3
+  rag → agent → llm → tool:storage:atmstoragewritea → resource:storage:atmstoragewritea → resource:storage:atmstoragewriteb  [vecteur latéral : lecture/exfiltration ou copie inter-storage possible]
+     boundaries franchies : B2, B5, B3
+  rag → agent → llm → tool:storage:atmstoragewritea → resource:storage:atmstoragewritea → resource:storage:atmstoragewriteb  [vecteur latéral : RAG poisoning → écriture inter-storage possible]
+     boundaries franchies : B2, B5, B3
+  Atteint un log sink : NON
+
+Ressource : atmstoragewritea  (rôles applicables : Storage Blob Data Contributor)
+  user → agent → llm → tool:storage:atmteststorage123 → resource:storage:atmteststorage123 → resource:storage:atmstoragewritea  [vecteur latéral : lecture/exfiltration ou copie inter-storage possible]
+     boundaries franchies : B1, B5, B3
+  user → agent → llm → tool:storage:atmteststorage123 → resource:storage:atmteststorage123 → resource:storage:atmstoragewritea  [vecteur latéral : RAG poisoning → écriture inter-storage possible]
+     boundaries franchies : B1, B5, B3
+  user → agent → llm → tool:storage:atmstoragewriteb → resource:storage:atmstoragewriteb → resource:storage:atmstoragewritea  [vecteur latéral : lecture/exfiltration ou copie inter-storage possible]
+     boundaries franchies : B1, B5, B3
+  user → agent → llm → tool:storage:atmstoragewriteb → resource:storage:atmstoragewriteb → resource:storage:atmstoragewritea  [vecteur latéral : RAG poisoning → écriture inter-storage possible]
+     boundaries franchies : B1, B5, B3
+  user → agent → llm → tool:storage:atmstoragewritea → resource:storage:atmstoragewritea  [accès direct]
+     boundaries franchies : B1, B5, B3
+  rag → agent → llm → tool:storage:atmteststorage123 → resource:storage:atmteststorage123 → resource:storage:atmstoragewritea  [vecteur latéral : lecture/exfiltration ou copie inter-storage possible]
+     boundaries franchies : B2, B5, B3
+  rag → agent → llm → tool:storage:atmteststorage123 → resource:storage:atmteststorage123 → resource:storage:atmstoragewritea  [vecteur latéral : RAG poisoning → écriture inter-storage possible]
+     boundaries franchies : B2, B5, B3
+  rag → agent → llm → tool:storage:atmstoragewriteb → resource:storage:atmstoragewriteb → resource:storage:atmstoragewritea  [vecteur latéral : lecture/exfiltration ou copie inter-storage possible]
+     boundaries franchies : B2, B5, B3
+  rag → agent → llm → tool:storage:atmstoragewriteb → resource:storage:atmstoragewriteb → resource:storage:atmstoragewritea  [vecteur latéral : RAG poisoning → écriture inter-storage possible]
+     boundaries franchies : B2, B5, B3
+  rag → agent → llm → tool:storage:atmstoragewritea → resource:storage:atmstoragewritea  [accès direct]
+     boundaries franchies : B2, B5, B3
+  Atteint un log sink : NON
+
+Ressource : atm-kv-2446  (rôles applicables : Key Vault Secrets User)
+  user → agent → llm → tool:keyvault:atm-kv-2446 → resource:keyvault:atm-kv-2446  [accès direct]
+     boundaries franchies : B1, B5, B3
+  rag → agent → llm → tool:keyvault:atm-kv-2446 → resource:keyvault:atm-kv-2446  [accès direct]
+     boundaries franchies : B2, B5, B3
+  Atteint un log sink : NON
+
+
+=== Vérification arêtes inter-ressources ===
+
+  resource:storage:atmteststorage123 → resource:storage:atmstoragewriteb [lecture/exfiltration ou copie inter-storage possible]
+  resource:storage:atmteststorage123 → resource:storage:atmstoragewriteb [RAG poisoning → écriture inter-storage possible]
+  resource:storage:atmteststorage123 → resource:storage:atmstoragewritea [lecture/exfiltration ou copie inter-storage possible]
+  resource:storage:atmteststorage123 → resource:storage:atmstoragewritea [RAG poisoning → écriture inter-storage possible]
+  resource:storage:atmstoragewriteb → resource:storage:atmteststorage123 [lecture/exfiltration ou copie inter-storage possible]
+  resource:storage:atmstoragewriteb → resource:storage:atmteststorage123 [RAG poisoning → écriture inter-storage possible]
+  resource:storage:atmstoragewriteb → resource:storage:atmstoragewritea [lecture/exfiltration ou copie inter-storage possible]
+  resource:storage:atmstoragewriteb → resource:storage:atmstoragewritea [RAG poisoning → écriture inter-storage possible]
+  resource:storage:atmstoragewritea → resource:storage:atmteststorage123 [lecture/exfiltration ou copie inter-storage possible]
+  resource:storage:atmstoragewritea → resource:storage:atmteststorage123 [RAG poisoning → écriture inter-storage possible]
+  resource:storage:atmstoragewritea → resource:storage:atmstoragewriteb [lecture/exfiltration ou copie inter-storage possible]
+  resource:storage:atmstoragewritea → resource:storage:atmstoragewriteb [RAG poisoning → écriture inter-storage possible]

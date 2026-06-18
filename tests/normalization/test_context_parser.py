@@ -60,6 +60,7 @@ def test_key_vaults(ctx):
     assert kv.network_acls_default_action == "Allow"
     assert kv.soft_delete_enabled is True
     assert kv.purge_protection_enabled is False
+    assert kv.enable_rbac_authorization is False
 
 
 def test_storage_accounts(ctx):

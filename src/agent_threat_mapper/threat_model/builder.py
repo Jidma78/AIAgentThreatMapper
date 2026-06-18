@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from agent_threat_mapper.models.agent_intent import AgentIntent
 from agent_threat_mapper.models.azure_resources import AgentContext, RoleAssignment
+from agent_threat_mapper.models.role_interpreter import aggregate_permissions
 from agent_threat_mapper.models.threat_model import (
     AccessLevel,
     Edge,
@@ -261,5 +262,36 @@ def build_threat_model(context: AgentContext, intent: AgentIntent) -> ThreatMode
         # Le service de recherche alimente la couche RAG (contenu potentiellement empoisonné).
         edges.append(Edge(res_node_id, "rag", "alimente l'index"))
         _link_logs(ais.resource_id, res_node_id)
+
+    # --- Flux inter-storage (latéraux, intra-CLOUD_PLATFORM → aucune nouvelle boundary) ----
+    # Deux vecteurs DISTINCTS, aux labels distincts pour des findings différenciés au stage 4.
+    # Permissions déduites des rôles réels via aggregate_permissions (pas d'heuristique aveugle).
+    storage_nodes = [
+        n for n in nodes
+        if n.kind == NodeKind.AZURE_RESOURCE and n.resource_type == ResourceType.STORAGE
+    ]
+    perms = {
+        n.id: aggregate_permissions(n.applicable_roles, ResourceType.STORAGE)
+        for n in storage_nodes
+    }
+    rag_source_ids = {
+        f"resource:{ResourceType.STORAGE.value}:{sa.name}" for sa in storage_rag_sources
+    }
+
+    for a in storage_nodes:
+        for b in storage_nodes:
+            if a.id == b.id:
+                continue
+            # Flux 1 — exfiltration / copie directe : lecture sur A ET écriture sur B (directionnel).
+            if perms[a.id].can_read_data and perms[b.id].can_write_data:
+                edges.append(
+                    Edge(a.id, b.id, "lecture/exfiltration ou copie inter-storage possible")
+                )
+            # Flux 2 — RAG poisoning : A est une source RAG et B est accessible en écriture.
+            # (arête parallèle possible avec le flux 1, label distinct, assumée.)
+            if a.id in rag_source_ids and perms[b.id].can_write_data:
+                edges.append(
+                    Edge(a.id, b.id, "RAG poisoning → écriture inter-storage possible")
+                )
 
     return ThreatModel(nodes=nodes, edges=edges, boundaries=boundaries)

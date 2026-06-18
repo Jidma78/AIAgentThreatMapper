@@ -121,6 +121,9 @@ def _map_key_vault(raw: dict[str, Any]) -> dict[str, Any]:
         "enabled_for_disk_encryption": bool(props.get("enabledForDiskEncryption")),
         "soft_delete_enabled": bool(props.get("enableSoftDelete")),
         "purge_protection_enabled": bool(props.get("enablePurgeProtection") or False),
+        # Conservé tel quel (True/False/None) : None signale un mode d'autorisation inconnu.
+        # `az keyvault show` renvoie déjà ce champ dans properties — aucune commande az à ajouter.
+        "enable_rbac_authorization": props.get("enableRbacAuthorization"),
     }
 
 

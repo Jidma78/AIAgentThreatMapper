@@ -14,6 +14,10 @@ agent_context.json
 # Fichiers de rôle métier réels (données de travail, pas du code projet)
 agent_role.txt
 
+# Sorties générées du pipeline sur données réelles (contiennent infos infra réelles)
+report.md
+stage4.txt
+
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

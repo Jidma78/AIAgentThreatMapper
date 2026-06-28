@@ -1,1 +1,62 @@
-{# Template Jinja2 du rapport Markdown : une section par finding (titre, sévérité, explication, mitigation). #}
+{# Rapport Markdown — toute la logique vit dans formatter.py ; ce template ne fait que rendre. #}
+# Security Posture Report — {{ agent_name }}
+
+- **Declared autonomy**: {{ autonomy_level }}
+- **Generated**: {{ generated_at }}
+
+## Executive summary
+
+{{ summary_sentence }}
+
+| Severity | Count |
+|----------|-------|
+| 🔴 CRITICAL | {{ severity_counts.CRITICAL }} |
+| 🟠 HIGH | {{ severity_counts.HIGH }} |
+| 🟡 MEDIUM | {{ severity_counts.MEDIUM }} |
+| 🔵 LOW | {{ severity_counts.LOW }} |
+
+## ⚠️ Capability mismatch — declared intent vs. real Azure permissions
+
+{% if capability_mismatch %}
+The following findings show the agent's real permissions contradicting its declared business intent:
+
+{% for f in capability_mismatch %}
+- {{ f.severity_badge }} **{{ f.title }}** — {{ f.affected_resources | join(", ") }} (`{{ f.rule_id }}`)
+{% endfor %}
+{% else %}
+No capability mismatch detected — the agent's effective permissions are consistent with its declared intent.
+{% endif %}
+
+## Detailed findings
+
+{% for f in findings %}
+### {{ f.severity_badge }} {{ f.title }}
+
+- **Rule**: `{{ f.rule_id }}` · **Category**: {{ f.category }}
+- **Affected resource(s)**: {{ f.affected_resources | join(", ") }}
+{% if f.owasp_ref %}
+- **OWASP**: {{ f.owasp_ref }}
+{% endif %}
+
+{{ f.explanation }}
+
+**Mitigation**: {{ f.mitigation }}
+{% if f.attack_paths %}
+
+**Attack path(s):**
+
+{% for p in f.attack_paths %}
+- `{{ p }}`
+{% endfor %}
+{% endif %}
+
+{% endfor %}
+## Methodology
+
+This report compares the agent's declared business intent against the real Azure IAM permissions of its managed identity, surfacing capability mismatches and concrete attack paths. The analysis is fully deterministic: findings are produced by a static rules engine over the threat-model graph — no LLM, no network calls, no API keys.
+
+Trust boundaries in the model:
+
+{% for b in boundaries %}
+- **{{ b.id }}** — {{ b.name }}: {{ b.description }}
+{% endfor %}

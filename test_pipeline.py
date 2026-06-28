@@ -3,6 +3,11 @@ from agent_threat_mapper.normalization.context_parser import parse_context
 from agent_threat_mapper.normalization.intent_parser import parse_intent
 from agent_threat_mapper.threat_model.builder import build_threat_model
 
+from agent_threat_mapper.rules.engine import run_rules
+from agent_threat_mapper.normalization.intent_parser import parse_intent
+from pathlib import Path
+
+
 print("=== STAGE 2 : parsing des deux inputs ===\n")
 ctx = parse_context(Path("agent_context.json"))
 intent = parse_intent(Path("agent_role.txt"))
@@ -48,3 +53,16 @@ for e in tm.edges:
     tgt = tm.get_node(e.target_id)
     if src.kind == NodeKind.AZURE_RESOURCE and tgt.kind == NodeKind.AZURE_RESOURCE:
         print(f"  {e.source_id} → {e.target_id} [{e.label}]")
+
+
+print("\n=== STAGE 4 : moteur de règles ===\n")
+findings = run_rules(tm, intent)
+print(f"{len(findings)} finding(s) détecté(s)\n")
+for f in sorted(findings, key=lambda x: x.severity.value):
+    print(f"[{f.severity.value.upper()}] {f.rule_id} — {f.title}")
+    print(f"  Ressources : {', '.join(f.affected_resources)}")
+    print(f"  {f.explanation[:120]}...")
+    print(f"  Mitigation : {f.mitigation[:100]}...")
+    if f.owasp_ref:
+        print(f"  OWASP : {f.owasp_ref}")
+    print()

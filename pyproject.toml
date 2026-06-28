@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Compare l'intention métier déclarée d'un agent IA avec les permissions réelles de son identité Azure pour identifier des risques de sécurité."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["jinja2>=3.1"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
@@ -18,3 +18,6 @@ atm = "agent_threat_mapper.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"agent_threat_mapper.reporting" = ["templates/*.j2"]
